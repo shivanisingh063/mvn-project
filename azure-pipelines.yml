@@ -2,15 +2,41 @@ trigger:
 - main
 
 pool:
-  vmImage: 'windows-latest'
+  vmImage: 'ubuntu-latest'
 
-steps:
-- task: Maven@4
-  inputs:
-    mavenPomFile: 'pom.xml'
-    goals: 'clean test package'
-    publishJUnitResults: true
-    testResultsFiles: '**/surefire-reports/TEST-*.xml'
-    javaHomeOption: 'JDKVersion'
-    jdkVersionOption: '1.17'
-    mavenVersionOption: 'Default'
+stages:
+- stage: Build
+  jobs:
+  - job: Build
+    steps:
+    - task: Maven@4
+      inputs:
+        mavenPomFile: 'pom.xml'
+        goals: 'clean package'
+        publishJUnitResults: true
+        testResultsFiles: '**/surefire-reports/TEST-*.xml'
+
+    - publish: $(System.DefaultWorkingDirectory)/target
+      artifact: drop
+
+- stage: Deploy
+  dependsOn: Build
+
+  jobs:
+  - deployment: DeployWebApp
+    environment: production
+
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+
+          - download: current
+            artifact: drop
+
+          - task: AzureWebApp@1
+            inputs:
+              azureSubscription: 'AzureStudentConnection'
+              appType: 'webAppLinux'
+              appName: 'shivani-maven-app-2026'
+              package: '$(Pipeline.Workspace)/drop/*.jar'
